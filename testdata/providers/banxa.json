@@ -1,0 +1,7 @@
+{
+    "name": "banxa",
+    "display_name": "Banxa",
+    "base_url": "https://api.banxa.com",
+    "is_active": true,
+    "description": "Banxa API provider for crypto on-ramp services"
+}

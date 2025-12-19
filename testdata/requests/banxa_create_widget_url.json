@@ -1,0 +1,67 @@
+{
+    "provider": "banxa",
+    "action": "create_widget_url",
+    "method": "POST",
+    "path": "/api/orders",
+    "description": "Create a new widget URL for Banxa",
+    "request_values": [
+        {
+            "field_path": "body.account_reference",
+            "value_type": "param",
+            "value_source": "account_reference",
+            "is_required": true
+        },
+        {
+            "field_path": "body.source_currency",
+            "value_type": "param",
+            "value_source": "source_currency",
+            "is_required": true,
+            "default_value": "USD"
+        },
+        {
+            "field_path": "body.target_currency",
+            "value_type": "param",
+            "value_source": "target_currency",
+            "is_required": true
+        },
+        {
+            "field_path": "body.wallet_address",
+            "value_type": "param",
+            "value_source": "wallet_address",
+            "is_required": true
+        }
+    ],
+    "header_rules": [
+        {
+            "header_name": "Content-Type",
+            "value_type": "static",
+            "static_value": "application/json",
+            "priority": 1
+        },
+        {
+            "header_name": "Authorization",
+            "value_type": "credential",
+            "value_source": "api_key",
+            "value_template": "Bearer {api_key}",
+            "priority": 2
+        }
+    ],
+    "response_mappings": [
+        {
+            "source_field": "data.checkout_url",
+            "target_field": "widget_url",
+            "is_required": true
+        },
+        {
+            "source_field": "data.order_id",
+            "target_field": "order_id",
+            "is_required": true
+        },
+        {
+            "source_field": "data.status",
+            "target_field": "status",
+            "is_required": false,
+            "default_value": "pending"
+        }
+    ]
+}

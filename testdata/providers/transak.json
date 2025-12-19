@@ -1,0 +1,7 @@
+{
+    "name": "transak",
+    "display_name": "Transak",
+    "base_url": "https://api.transak.com",
+    "is_active": true,
+    "description": "Transak API provider for crypto payment services"
+}
