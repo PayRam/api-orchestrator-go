@@ -4,10 +4,8 @@ import (
 	"log"
 
 	"github.com/PayRam/api-orchestrator-go/config"
-	"github.com/PayRam/api-orchestrator-go/orchestrator"
-	"github.com/PayRam/api-orchestrator-go/repository"
-	"github.com/PayRam/api-orchestrator-go/service"
-	"github.com/PayRam/api-orchestrator-go/utils"
+	"github.com/PayRam/api-orchestrator-go/internal/utils"
+	"github.com/PayRam/api-orchestrator-go/pkg/orchestrator"
 	"go.uber.org/zap"
 )
 
@@ -36,34 +34,15 @@ func main() {
 		logger.Fatal("Failed to run migrations", zap.Error(err))
 	}
 
-	// Initialize repositories
+	// Initialize orchestrator using the new public API
 	db := dbConn.GetDB()
-	providerRepo := repository.NewProviderRepo(db)
-	credentialRepo := repository.NewCredentialRepo(db)
-	headerRuleRepo := repository.NewHeaderRuleRepo(db)
-	endpointRepo := repository.NewEndpointRepo(db)
-	requestValueRepo := repository.NewRequestValueRepo(db)
-	responseMappingRepo := repository.NewResponseMappingRepo(db)
-	strategyRepo := repository.NewStrategyRepo(db)
-
-	// Initialize services (services depend on other services, not repos directly)
-	providerService := service.NewProviderService(providerRepo, logger)
-	credentialService := service.NewCredentialService(credentialRepo, providerService, logger)
-	endpointService := service.NewEndpointService(endpointRepo, providerService, logger)
-	strategyService := service.NewStrategyService(strategyRepo, logger)
-
-	logger.Info("All services initialized successfully")
-
-	// Initialize orchestrator
-	orch := orchestrator.New(
-		providerService,
-		credentialService,
-		endpointService,
-		headerRuleRepo,
-		requestValueRepo,
-		responseMappingRepo,
-		logger,
-	)
+	orch, err := orchestrator.New(orchestrator.Config{
+		DB:     db,
+		Logger: logger,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize orchestrator", zap.Error(err))
+	}
 
 	logger.Info("Orchestrator initialized successfully")
 
@@ -86,17 +65,8 @@ func main() {
 	// 	zap.Int("status_code", response.StatusCode),
 	// 	zap.Any("data", response.Data))
 
-	// List all providers as an example
-	providers, err := providerService.ListProviders()
-	if err != nil {
-		logger.Error("Failed to list providers", zap.Error(err))
-	} else {
-		logger.Info("Found providers", zap.Int("count", len(providers)))
-	}
-
-	// Keep variables in scope
+	// Keep orchestrator in scope
 	_ = orch
-	_ = strategyService
 
 	logger.Info("API Orchestrator is ready")
 }

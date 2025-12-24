@@ -3,8 +3,9 @@ package config
 import (
 	"fmt"
 
+	"github.com/PayRam/api-orchestrator-go/internal/models"
+	"github.com/PayRam/api-orchestrator-go/internal/utils"
 	"github.com/PayRam/api-orchestrator-go/model"
-	"github.com/PayRam/api-orchestrator-go/utils"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -51,6 +52,14 @@ func (conn *DBConnection) AutoMigrate() error {
 		&model.ProviderRequestValue{},
 		&model.Strategy{},
 		&model.ProviderResponseMapping{},
+		&models.Credential{},
+		&models.HeaderRule{},
+		&models.Provider{},
+		&models.Strategy{},
+		&models.Endpoint{},
+		&models.RequestSchema{},
+		&models.RequestValue{},
+		&models.ResponseMapping{},
 	)
 
 	if err != nil {

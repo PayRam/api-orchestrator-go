@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/PayRam/api-orchestrator-go/config"
-	"github.com/PayRam/api-orchestrator-go/repository"
-	"github.com/PayRam/api-orchestrator-go/utils"
+	"github.com/PayRam/api-orchestrator-go/internal/repositories"
+	"github.com/PayRam/api-orchestrator-go/internal/utils"
 	"go.uber.org/zap"
 )
 
@@ -36,13 +36,13 @@ func main() {
 
 	// Initialize repositories
 	db := dbConn.GetDB()
-	providerRepo := repository.NewProviderRepo(db)
-	credentialRepo := repository.NewCredentialRepo(db)
-	headerRuleRepo := repository.NewHeaderRuleRepo(db)
-	endpointRepo := repository.NewEndpointRepo(db)
-	requestValueRepo := repository.NewRequestValueRepo(db)
-	strategyRepo := repository.NewStrategyRepo(db)
-	responseMappingRepo := repository.NewResponseMappingRepo(db)
+	providerRepo := repositories.NewProviderRepo(db)
+	credentialRepo := repositories.NewCredentialRepo(db)
+	headerRuleRepo := repositories.NewHeaderRuleRepo(db)
+	endpointRepo := repositories.NewEndpointRepo(db)
+	requestValueRepo := repositories.NewRequestValueRepo(db)
+	strategyRepo := repositories.NewStrategyRepo(db)
+	responseMappingRepo := repositories.NewResponseMappingRepo(db)
 
 	logger.Info("All repositories initialized successfully")
 
