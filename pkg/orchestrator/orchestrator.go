@@ -20,20 +20,48 @@ import (
 // This is the public response type returned by the Call method.
 type Response = response.UnifiedResponse
 
+// SetEncryptionKey sets the global encryption key for credential encryption.
+// This MUST be called before creating the Orchestrator instance.
+// The key must be exactly 32 bytes (256 bits) for AES-256-GCM encryption.
+func SetEncryptionKey(key []byte) error {
+	return models.SetEncryptionKey(key)
+}
+
+// SetEncryptionKeyFromString sets the encryption key from a string.
+// The string must be exactly 32 characters long.
+func SetEncryptionKeyFromString(key string) error {
+	return models.SetEncryptionKeyFromString(key)
+}
+
+// IsEncryptionKeySet returns true if the encryption key has been set.
+func IsEncryptionKeySet() bool {
+	return models.IsEncryptionKeySet()
+}
+
+// ClearEncryptionKey clears the encryption key (useful for testing).
+func ClearEncryptionKey() {
+	models.ClearEncryptionKey()
+}
+
 // Orchestrator is the main orchestrator for dynamic API calls.
 // It provides a clean interface for executing API requests based on
 // database-driven configurations.
 type Orchestrator struct {
+	db                  *gorm.DB
 	providerService     services.ProviderService
 	credentialService   services.CredentialService
 	endpointService     services.EndpointService
+	strategyService     services.StrategyService
 	headerRuleRepo      repositories.HeaderRuleRepo
+	requestSchemaRepo   repositories.RequestSchemaRepo
 	requestValueRepo    repositories.RequestValueRepo
 	responseMappingRepo repositories.ResponseMappingRepo
+	credentialRepo      repositories.CredentialRepo
 	headerBuilder       *builder.HeaderBuilder
 	requestBuilder      *builder.RequestBuilder
 	httpExecutor        *executor.HTTPExecutor
 	responseMapper      *response.ResponseMapper
+	adminAPI            *AdminAPI
 	logger              *zap.Logger
 }
 
@@ -60,25 +88,46 @@ func New(cfg Config) (*Orchestrator, error) {
 	credentialRepo := repositories.NewCredentialRepo(cfg.DB)
 	endpointRepo := repositories.NewEndpointRepo(cfg.DB)
 	headerRuleRepo := repositories.NewHeaderRuleRepo(cfg.DB)
+	requestSchemaRepo := repositories.NewRequestSchemaRepo(cfg.DB)
 	requestValueRepo := repositories.NewRequestValueRepo(cfg.DB)
 	responseMappingRepo := repositories.NewResponseMappingRepo(cfg.DB)
+	strategyRepo := repositories.NewStrategyRepo(cfg.DB)
 
 	// Initialize services
 	providerService := services.NewProviderService(providerRepo, logger)
 	credentialService := services.NewCredentialService(credentialRepo, providerService, logger)
 	endpointService := services.NewEndpointService(endpointRepo, providerService, logger)
+	strategyService := services.NewStrategyService(strategyRepo, logger)
+
+	// Initialize AdminAPI
+	adminAPI := &AdminAPI{
+		providerService:     providerService,
+		credentialService:   credentialService,
+		credentialRepo:      credentialRepo,
+		endpointService:     endpointService,
+		strategyService:     strategyService,
+		headerRuleRepo:      headerRuleRepo,
+		requestSchemaRepo:   requestSchemaRepo,
+		requestValueRepo:    requestValueRepo,
+		responseMappingRepo: responseMappingRepo,
+	}
 
 	return &Orchestrator{
+		db:                  cfg.DB,
 		providerService:     providerService,
 		credentialService:   credentialService,
 		endpointService:     endpointService,
+		strategyService:     strategyService,
 		headerRuleRepo:      headerRuleRepo,
+		requestSchemaRepo:   requestSchemaRepo,
 		requestValueRepo:    requestValueRepo,
 		responseMappingRepo: responseMappingRepo,
+		credentialRepo:      credentialRepo,
 		headerBuilder:       builder.NewHeaderBuilder(credentialService, logger),
 		requestBuilder:      builder.NewRequestBuilder(),
 		httpExecutor:        executor.NewHTTPExecutor(logger),
 		responseMapper:      response.NewResponseMapper(logger),
+		adminAPI:            adminAPI,
 		logger:              logger,
 	}, nil
 }
@@ -182,4 +231,10 @@ func (o *Orchestrator) Call(provider string, action string, params map[string]in
 		zap.Int("status_code", unifiedResponse.StatusCode))
 
 	return unifiedResponse, nil
+}
+
+// Admin returns the AdminAPI for managing providers, credentials, endpoints, and configurations.
+// This provides a clean interface for external Go projects to configure the orchestrator.
+func (o *Orchestrator) Admin() *AdminAPI {
+	return o.adminAPI
 }
