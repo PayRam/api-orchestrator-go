@@ -1,12 +1,20 @@
 package services
 
 import (
+	"os"
 	"testing"
 
 	"github.com/PayRam/api-orchestrator-go/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+// TestMain sets up the test environment
+func TestMain(m *testing.M) {
+	// Set encryption key for all tests
+	_ = models.SetEncryptionKey([]byte("test-encryption-key-32-bytes-!!"))
+	os.Exit(m.Run())
+}
 
 // Mock credential repository for testing
 type mockCredentialRepo struct {

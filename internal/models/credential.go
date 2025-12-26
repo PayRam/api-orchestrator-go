@@ -7,13 +7,92 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"os"
+	"sync"
 	"time"
 )
 
-// Default encryption key for development (32 bytes for AES-256)
-// In production, this should be loaded from environment variable ENCRYPTION_KEY
-var defaultEncryptionKey = []byte("0123456789abcdef0123456789abcdef")
+var (
+	// encryptionKey is set by the library consumer during initialization
+	encryptionKey   []byte
+	encryptionMutex sync.RWMutex
+
+	// ErrEncryptionKeyNotSet is returned when encryption is attempted without setting a key
+	ErrEncryptionKeyNotSet = errors.New("encryption key not set: call SetEncryptionKey() before using credential encryption")
+)
+
+// SetEncryptionKey sets the encryption key for the library.
+// This MUST be called by the library consumer before using credential encryption.
+// The key must be exactly 32 bytes for AES-256 encryption.
+//
+// Example usage:
+//
+//	func main() {
+//	    key := []byte(os.Getenv("MY_APP_ENCRYPTION_KEY"))
+//	    if err := models.SetEncryptionKey(key); err != nil {
+//	        log.Fatal(err)
+//	    }
+//	}
+func SetEncryptionKey(key []byte) error {
+	if len(key) == 0 {
+		return ErrEncryptionKeyNotSet
+	}
+
+	encryptionMutex.Lock()
+	defer encryptionMutex.Unlock()
+
+	// Ensure key is exactly 32 bytes for AES-256
+	if len(key) < 32 {
+		// Pad if shorter
+		padded := make([]byte, 32)
+		copy(padded, key)
+		encryptionKey = padded
+	} else {
+		encryptionKey = key[:32]
+	}
+
+	return nil
+}
+
+// SetEncryptionKeyFromString is a convenience method that accepts a string key.
+// The string should be at least 32 characters for full AES-256 security.
+func SetEncryptionKeyFromString(key string) error {
+	return SetEncryptionKey([]byte(key))
+}
+
+// IsEncryptionKeySet returns true if an encryption key has been configured.
+func IsEncryptionKeySet() bool {
+	encryptionMutex.RLock()
+	defer encryptionMutex.RUnlock()
+	return len(encryptionKey) == 32
+}
+
+// ClearEncryptionKey removes the encryption key from memory.
+// Useful for testing or security-sensitive cleanup.
+func ClearEncryptionKey() {
+	encryptionMutex.Lock()
+	defer encryptionMutex.Unlock()
+	// Zero out the key before clearing
+	for i := range encryptionKey {
+		encryptionKey[i] = 0
+	}
+	encryptionKey = nil
+}
+
+// getEncryptionKey retrieves the configured encryption key.
+// Returns an error if no key has been set.
+func getEncryptionKey() ([]byte, error) {
+	encryptionMutex.RLock()
+	defer encryptionMutex.RUnlock()
+
+	if len(encryptionKey) != 32 {
+		return nil, ErrEncryptionKeyNotSet
+	}
+
+	// Return a copy to prevent external modification
+	keyCopy := make([]byte, 32)
+	copy(keyCopy, encryptionKey)
+	return keyCopy, nil
+}
 
 // Credential stores API credentials per provider securely.
 // This model supports field-level encryption for sensitive data like API keys and secrets.
@@ -53,23 +132,6 @@ func (Credential) TableName() string {
 	return "credentials"
 }
 
-// getEncryptionKey retrieves the encryption key from environment or uses default.
-// In production, always set ENCRYPTION_KEY environment variable.
-func getEncryptionKey() []byte {
-	if key := os.Getenv("ENCRYPTION_KEY"); key != "" {
-		// Ensure key is exactly 32 bytes for AES-256
-		keyBytes := []byte(key)
-		if len(keyBytes) >= 32 {
-			return keyBytes[:32]
-		}
-		// Pad if shorter
-		padded := make([]byte, 32)
-		copy(padded, keyBytes)
-		return padded
-	}
-	return defaultEncryptionKey
-}
-
 // EncryptValue encrypts the given plain text value using AES-256-GCM.
 // Returns base64-encoded ciphertext that includes the nonce.
 func EncryptValue(plainText string) (string, error) {
@@ -77,7 +139,11 @@ func EncryptValue(plainText string) (string, error) {
 		return "", nil
 	}
 
-	key := getEncryptionKey()
+	key, err := getEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
@@ -115,7 +181,11 @@ func DecryptValue(cipherText string) (string, error) {
 		return cipherText, nil
 	}
 
-	key := getEncryptionKey()
+	key, err := getEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err

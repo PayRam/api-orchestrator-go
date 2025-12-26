@@ -1,12 +1,20 @@
 package repositories
 
 import (
+	"os"
 	"testing"
 
 	"github.com/PayRam/api-orchestrator-go/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+// TestMain sets up the test environment
+func TestMain(m *testing.M) {
+	// Set encryption key for all tests
+	_ = models.SetEncryptionKey([]byte("test-encryption-key-32-bytes-!!"))
+	os.Exit(m.Run())
+}
 
 func setupCredentialTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
