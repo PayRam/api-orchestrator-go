@@ -159,9 +159,10 @@ type ResponseMapping struct {
 	Provider Provider `gorm:"foreignKey:ProviderID;constraint:OnDelete:CASCADE" json:"-"`
 }
 
-// TableName overrides the table name for GORM
+// TableName overrides the table name for GORM.
+// Returns the table name with configured prefix.
 func (ResponseMapping) TableName() string {
-	return "response_mappings"
+	return GetTableName("response_mappings")
 }
 
 // Validate validates the response mapping fields

@@ -38,7 +38,7 @@ type HeaderRule struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "header_rules" as the database table name.
+// Returns the table name with configured prefix.
 func (HeaderRule) TableName() string {
-	return "header_rules"
+	return GetTableName("header_rules")
 }

@@ -45,9 +45,9 @@ type RequestSchema struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "request_schemas" as the database table name.
+// Returns the table name with configured prefix.
 func (RequestSchema) TableName() string {
-	return "request_schemas"
+	return GetTableName("request_schemas")
 }
 
 // ParamLocation constants for request schema

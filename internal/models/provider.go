@@ -37,7 +37,7 @@ type Provider struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "providers" as the database table name.
+// Returns the table name with configured prefix.
 func (Provider) TableName() string {
-	return "providers"
+	return GetTableName("providers")
 }

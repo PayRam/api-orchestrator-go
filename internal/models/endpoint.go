@@ -43,7 +43,7 @@ type Endpoint struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "endpoints" as the database table name.
+// Returns the table name with configured prefix.
 func (Endpoint) TableName() string {
-	return "endpoints"
+	return GetTableName("endpoints")
 }

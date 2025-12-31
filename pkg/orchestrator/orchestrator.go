@@ -67,8 +67,9 @@ type Orchestrator struct {
 
 // Config holds the configuration for creating a new Orchestrator instance.
 type Config struct {
-	DB     *gorm.DB
-	Logger *zap.Logger
+	DB          *gorm.DB    // Required: Database connection
+	Logger      *zap.Logger // Optional: Logger instance
+	TablePrefix string      // Optional: Prefix for all orchestrator tables (e.g., "orch_")
 }
 
 // New creates a new Orchestrator instance with the given configuration.
@@ -81,6 +82,12 @@ func New(cfg Config) (*Orchestrator, error) {
 	logger := cfg.Logger
 	if logger == nil {
 		logger, _ = zap.NewProduction()
+	}
+
+	// Set table prefix if provided
+	if cfg.TablePrefix != "" {
+		models.SetTablePrefix(cfg.TablePrefix)
+		logger.Info("Using table prefix", zap.String("prefix", cfg.TablePrefix))
 	}
 
 	// Initialize repositories

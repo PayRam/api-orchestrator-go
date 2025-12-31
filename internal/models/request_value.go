@@ -46,9 +46,9 @@ type RequestValue struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "request_values" as the database table name.
+// Returns the table name with configured prefix.
 func (RequestValue) TableName() string {
-	return "request_values"
+	return GetTableName("request_values")
 }
 
 // SourceType constants for request values

@@ -127,9 +127,9 @@ type Credential struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "credentials" as the database table name.
+// Returns the table name with configured prefix.
 func (Credential) TableName() string {
-	return "credentials"
+	return GetTableName("credentials")
 }
 
 // EncryptValue encrypts the given plain text value using AES-256-GCM.

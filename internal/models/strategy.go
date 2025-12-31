@@ -35,7 +35,7 @@ type Strategy struct {
 }
 
 // TableName overrides the table name for GORM.
-// Returns "strategies" as the database table name.
+// Returns the table name with configured prefix.
 func (Strategy) TableName() string {
-	return "strategies"
+	return GetTableName("strategies")
 }

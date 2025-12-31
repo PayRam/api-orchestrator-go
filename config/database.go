@@ -38,12 +38,75 @@ func NewConnection(cfg *DatabaseConfig) (*DBConnection, error) {
 	return &DBConnection{DB: db}, nil
 }
 
-// AutoMigrate runs database migrations
+// AutoMigrateOptions holds options for auto-migration
+type AutoMigrateOptions struct {
+	// TablePrefix sets a prefix for all orchestrator tables
+	// Example: "orch_" will create tables like "orch_providers", "orch_credentials"
+	// Leave empty for no prefix (default table names)
+	TablePrefix string
+}
+
+// AutoMigrate runs database migrations with default options
 func (conn *DBConnection) AutoMigrate() error {
+	return conn.AutoMigrateWithOptions(AutoMigrateOptions{})
+}
+
+// AutoMigrateWithOptions runs database migrations with custom options
+func (conn *DBConnection) AutoMigrateWithOptions(opts AutoMigrateOptions) error {
 	log := utils.GetLogger()
 	log.Info("Running database migrations...")
 
+	// Set table prefix if provided
+	if opts.TablePrefix != "" {
+		models.SetTablePrefix(opts.TablePrefix)
+		log.Info("Using table prefix", zap.String("prefix", opts.TablePrefix))
+	}
+
 	err := conn.DB.AutoMigrate(
+		&model.Provider{},
+		&model.ProviderCredential{},
+		&model.ProviderHeaderRule{},
+		&model.ProviderEndpoint{},
+		&model.ProviderRequestSchema{},
+		&model.ProviderRequestValue{},
+		&model.Strategy{},
+		&model.ProviderResponseMapping{},
+		&models.Credential{},
+		&models.HeaderRule{},
+		&models.Provider{},
+		&models.Strategy{},
+		&models.Endpoint{},
+		&models.RequestSchema{},
+		&models.RequestValue{},
+		&models.ResponseMapping{},
+	)
+
+	if err != nil {
+		log.Error("Failed to run migrations", zap.Error(err))
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	log.Info("Database migrations completed successfully")
+	return nil
+}
+
+// AutoMigrate runs database migrations on a raw GORM DB (standalone helper)
+func AutoMigrate(db *gorm.DB) error {
+	return AutoMigrateWithOptions(db, AutoMigrateOptions{})
+}
+
+// AutoMigrateWithOptions runs database migrations on a raw GORM DB with custom options (standalone helper)
+func AutoMigrateWithOptions(db *gorm.DB, opts AutoMigrateOptions) error {
+	log := utils.GetLogger()
+	log.Info("Running database migrations...")
+
+	// Set table prefix if provided
+	if opts.TablePrefix != "" {
+		models.SetTablePrefix(opts.TablePrefix)
+		log.Info("Using table prefix", zap.String("prefix", opts.TablePrefix))
+	}
+
+	err := db.AutoMigrate(
 		&model.Provider{},
 		&model.ProviderCredential{},
 		&model.ProviderHeaderRule{},

@@ -115,6 +115,25 @@ Complete orchestration pipeline:
 go get github.com/PayRam/api-orchestrator-go
 ```
 
+### Table Name Conflicts
+
+If your existing application already has tables named `providers`, `credentials`, `endpoints`, etc., you can configure a table prefix to avoid conflicts:
+
+```go
+// Run migrations with prefix
+err := config.AutoMigrateWithOptions(db, config.AutoMigrateOptions{
+    TablePrefix: "orch_", // Creates: orch_providers, orch_credentials, etc.
+})
+
+// Create orchestrator with same prefix
+orch, err := orchestrator.New(orchestrator.Config{
+    DB:          db,
+    TablePrefix: "orch_",
+})
+```
+
+See [Table Prefix Documentation](docs/TABLE_PREFIX.md) for detailed usage.
+
 ### Environment Variables
 
 Create a `.env` file or set the following environment variables:
