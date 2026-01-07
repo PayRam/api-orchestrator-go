@@ -5,7 +5,6 @@ import (
 
 	"github.com/PayRam/api-orchestrator-go/internal/models"
 	"github.com/PayRam/api-orchestrator-go/internal/utils"
-	"github.com/PayRam/api-orchestrator-go/model"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -62,20 +61,13 @@ func (conn *DBConnection) AutoMigrateWithOptions(opts AutoMigrateOptions) error 
 		log.Info("Using table prefix", zap.String("prefix", opts.TablePrefix))
 	}
 
+	// Migrate only the new models that support table prefix
 	err := conn.DB.AutoMigrate(
-		&model.Provider{},
-		&model.ProviderCredential{},
-		&model.ProviderHeaderRule{},
-		&model.ProviderEndpoint{},
-		&model.ProviderRequestSchema{},
-		&model.ProviderRequestValue{},
-		&model.Strategy{},
-		&model.ProviderResponseMapping{},
-		&models.Credential{},
-		&models.HeaderRule{},
 		&models.Provider{},
-		&models.Strategy{},
+		&models.Credential{},
 		&models.Endpoint{},
+		&models.HeaderRule{},
+		&models.Strategy{},
 		&models.RequestSchema{},
 		&models.RequestValue{},
 		&models.ResponseMapping{},
@@ -106,20 +98,13 @@ func AutoMigrateWithOptions(db *gorm.DB, opts AutoMigrateOptions) error {
 		log.Info("Using table prefix", zap.String("prefix", opts.TablePrefix))
 	}
 
+	// Migrate only the new models that support table prefix
 	err := db.AutoMigrate(
-		&model.Provider{},
-		&model.ProviderCredential{},
-		&model.ProviderHeaderRule{},
-		&model.ProviderEndpoint{},
-		&model.ProviderRequestSchema{},
-		&model.ProviderRequestValue{},
-		&model.Strategy{},
-		&model.ProviderResponseMapping{},
-		&models.Credential{},
-		&models.HeaderRule{},
 		&models.Provider{},
-		&models.Strategy{},
+		&models.Credential{},
 		&models.Endpoint{},
+		&models.HeaderRule{},
+		&models.Strategy{},
 		&models.RequestSchema{},
 		&models.RequestValue{},
 		&models.ResponseMapping{},

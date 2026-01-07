@@ -2,8 +2,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/PayRam/api-orchestrator-go/model"
 )
 
 // HeaderRule defines rules for building HTTP headers dynamically for each provider.
@@ -17,7 +15,7 @@ type HeaderRule struct {
 	ProviderID string `gorm:"type:uuid;not null;index:idx_header_rule_provider_id" json:"provider_id" db:"provider_id"`
 
 	// Provider is the associated Provider entity (foreign key relationship).
-	Provider model.Provider `gorm:"foreignKey:ProviderID;constraint:OnDelete:CASCADE" json:"-"`
+	Provider Provider `gorm:"foreignKey:ProviderID;constraint:OnDelete:CASCADE" json:"-"`
 
 	// HeaderName is the HTTP header name (e.g., "Authorization", "x-api-key", "Content-Type").
 	HeaderName string `gorm:"type:varchar(255);not null" json:"header_name" db:"header_name"`
