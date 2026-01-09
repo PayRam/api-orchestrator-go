@@ -47,23 +47,23 @@ func ClearEncryptionKey() {
 // It provides a clean interface for executing API requests based on
 // database-driven configurations.
 type Orchestrator struct {
-	db                  *gorm.DB
-	providerService     services.ProviderService
-	credentialService   services.CredentialService
-	endpointService     services.EndpointService
-	strategyService     services.StrategyService
+	db                   *gorm.DB
+	providerService      services.ProviderService
+	credentialService    services.CredentialService
+	endpointService      services.EndpointService
+	strategyService      services.StrategyService
 	requestSchemaService services.RequestSchemaService
-	headerRuleRepo      repositories.HeaderRuleRepo
-	requestSchemaRepo   repositories.RequestSchemaRepo
-	requestValueRepo    repositories.RequestValueRepo
-	responseMappingRepo repositories.ResponseMappingRepo
-	credentialRepo      repositories.CredentialRepo
-	headerBuilder       *builder.HeaderBuilder
-	requestBuilder      *builder.RequestBuilder
-	httpExecutor        *executor.HTTPExecutor
-	responseMapper      *response.ResponseMapper
-	adminAPI            *AdminAPI
-	logger              *zap.Logger
+	headerRuleRepo       repositories.HeaderRuleRepo
+	requestSchemaRepo    repositories.RequestSchemaRepo
+	requestValueRepo     repositories.RequestValueRepo
+	responseMappingRepo  repositories.ResponseMappingRepo
+	credentialRepo       repositories.CredentialRepo
+	headerBuilder        *builder.HeaderBuilder
+	requestBuilder       *builder.RequestBuilder
+	httpExecutor         *executor.HTTPExecutor
+	responseMapper       *response.ResponseMapper
+	adminAPI             *AdminAPI
+	logger               *zap.Logger
 }
 
 // Config holds the configuration for creating a new Orchestrator instance.

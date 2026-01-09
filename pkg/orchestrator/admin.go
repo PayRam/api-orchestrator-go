@@ -306,14 +306,14 @@ func (a *AdminAPI) DeleteEndpoint(id string) error {
 
 // RequestSchemaConfig represents the configuration for a request schema parameter
 type RequestSchemaConfig struct {
-	ID            string `json:"id"`
-	EndpointID    string `json:"endpoint_id"`
-	FieldName     string `json:"field_name"`     // Maps to ParamName in model
-	FieldType     string `json:"field_type"`     // Maps to ParamType in model
-	Required      bool   `json:"required"`
-	Location      string `json:"location"`       // Maps to ParamLocation in model
-	DefaultValue  string `json:"default_value"`
-	Description   string `json:"description"`
+	ID           string `json:"id"`
+	EndpointID   string `json:"endpoint_id"`
+	FieldName    string `json:"field_name"` // Maps to ParamName in model
+	FieldType    string `json:"field_type"` // Maps to ParamType in model
+	Required     bool   `json:"required"`
+	Location     string `json:"location"` // Maps to ParamLocation in model
+	DefaultValue string `json:"default_value"`
+	Description  string `json:"description"`
 }
 
 // CreateRequestSchema creates a new request schema parameter for an endpoint
@@ -355,7 +355,7 @@ func (a *AdminAPI) GetRequestSchemasByEndpoint(endpointID string) ([]*RequestSch
 	if err != nil {
 		return nil, err
 	}
-	
+
 	configs := make([]*RequestSchemaConfig, len(schemas))
 	for i, schema := range schemas {
 		configs[i] = &RequestSchemaConfig{
