@@ -52,6 +52,7 @@ type Orchestrator struct {
 	credentialService   services.CredentialService
 	endpointService     services.EndpointService
 	strategyService     services.StrategyService
+	requestSchemaService services.RequestSchemaService
 	headerRuleRepo      repositories.HeaderRuleRepo
 	requestSchemaRepo   repositories.RequestSchemaRepo
 	requestValueRepo    repositories.RequestValueRepo
@@ -105,37 +106,40 @@ func New(cfg Config) (*Orchestrator, error) {
 	credentialService := services.NewCredentialService(credentialRepo, providerService, logger)
 	endpointService := services.NewEndpointService(endpointRepo, providerService, logger)
 	strategyService := services.NewStrategyService(strategyRepo, logger)
+	requestSchemaService := services.NewRequestSchemaService(requestSchemaRepo, endpointService, logger)
 
 	// Initialize AdminAPI
 	adminAPI := &AdminAPI{
-		providerService:     providerService,
-		credentialService:   credentialService,
-		credentialRepo:      credentialRepo,
-		endpointService:     endpointService,
-		strategyService:     strategyService,
-		headerRuleRepo:      headerRuleRepo,
-		requestSchemaRepo:   requestSchemaRepo,
-		requestValueRepo:    requestValueRepo,
-		responseMappingRepo: responseMappingRepo,
+		providerService:      providerService,
+		credentialService:    credentialService,
+		credentialRepo:       credentialRepo,
+		endpointService:      endpointService,
+		strategyService:      strategyService,
+		requestSchemaService: requestSchemaService,
+		headerRuleRepo:       headerRuleRepo,
+		requestSchemaRepo:    requestSchemaRepo,
+		requestValueRepo:     requestValueRepo,
+		responseMappingRepo:  responseMappingRepo,
 	}
 
 	return &Orchestrator{
-		db:                  cfg.DB,
-		providerService:     providerService,
-		credentialService:   credentialService,
-		endpointService:     endpointService,
-		strategyService:     strategyService,
-		headerRuleRepo:      headerRuleRepo,
-		requestSchemaRepo:   requestSchemaRepo,
-		requestValueRepo:    requestValueRepo,
-		responseMappingRepo: responseMappingRepo,
-		credentialRepo:      credentialRepo,
-		headerBuilder:       builder.NewHeaderBuilder(credentialService, logger),
-		requestBuilder:      builder.NewRequestBuilder(),
-		httpExecutor:        executor.NewHTTPExecutor(logger),
-		responseMapper:      response.NewResponseMapper(logger),
-		adminAPI:            adminAPI,
-		logger:              logger,
+		db:                   cfg.DB,
+		providerService:      providerService,
+		credentialService:    credentialService,
+		endpointService:      endpointService,
+		strategyService:      strategyService,
+		requestSchemaService: requestSchemaService,
+		headerRuleRepo:       headerRuleRepo,
+		requestSchemaRepo:    requestSchemaRepo,
+		requestValueRepo:     requestValueRepo,
+		responseMappingRepo:  responseMappingRepo,
+		credentialRepo:       credentialRepo,
+		headerBuilder:        builder.NewHeaderBuilder(credentialService, logger),
+		requestBuilder:       builder.NewRequestBuilder(),
+		httpExecutor:         executor.NewHTTPExecutor(logger),
+		responseMapper:       response.NewResponseMapper(logger),
+		adminAPI:             adminAPI,
+		logger:               logger,
 	}, nil
 }
 

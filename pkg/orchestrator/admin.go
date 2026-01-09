@@ -13,15 +13,16 @@ import (
 // AdminAPI provides public methods for managing providers, credentials, endpoints, and configurations.
 // This is the primary interface for external Go projects to interact with the orchestrator library.
 type AdminAPI struct {
-	providerService     services.ProviderService
-	credentialService   services.CredentialService
-	credentialRepo      repositories.CredentialRepo
-	endpointService     services.EndpointService
-	strategyService     services.StrategyService
-	headerRuleRepo      repositories.HeaderRuleRepo
-	requestSchemaRepo   repositories.RequestSchemaRepo
-	requestValueRepo    repositories.RequestValueRepo
-	responseMappingRepo repositories.ResponseMappingRepo
+	providerService      services.ProviderService
+	credentialService    services.CredentialService
+	credentialRepo       repositories.CredentialRepo
+	endpointService      services.EndpointService
+	strategyService      services.StrategyService
+	requestSchemaService services.RequestSchemaService
+	headerRuleRepo       repositories.HeaderRuleRepo
+	requestSchemaRepo    repositories.RequestSchemaRepo
+	requestValueRepo     repositories.RequestValueRepo
+	responseMappingRepo  repositories.ResponseMappingRepo
 }
 
 // ===============================
@@ -303,10 +304,93 @@ func (a *AdminAPI) DeleteEndpoint(id string) error {
 // Request Schema Configuration
 // ===============================
 
-// NOTE: RequestSchema is complex and directly manages param locations (path/query/body/header).
-// For advanced use cases, directly use the requestSchemaRepo after understanding the model structure.
-// See internal/models/request_schema.go for field definitions:
-//   - ParamName, ParamLocation, ParamType, Required, DefaultValue (string), Description
+// RequestSchemaConfig represents the configuration for a request schema parameter
+type RequestSchemaConfig struct {
+	ID            string `json:"id"`
+	EndpointID    string `json:"endpoint_id"`
+	FieldName     string `json:"field_name"`     // Maps to ParamName in model
+	FieldType     string `json:"field_type"`     // Maps to ParamType in model
+	Required      bool   `json:"required"`
+	Location      string `json:"location"`       // Maps to ParamLocation in model
+	DefaultValue  string `json:"default_value"`
+	Description   string `json:"description"`
+}
+
+// CreateRequestSchema creates a new request schema parameter for an endpoint
+func (a *AdminAPI) CreateRequestSchema(cfg RequestSchemaConfig) error {
+	schema := &models.RequestSchema{
+		ID:            cfg.ID,
+		EndpointID:    cfg.EndpointID,
+		ParamName:     cfg.FieldName,
+		ParamLocation: cfg.Location,
+		ParamType:     cfg.FieldType,
+		Required:      cfg.Required,
+		DefaultValue:  cfg.DefaultValue,
+		Description:   cfg.Description,
+	}
+	return a.requestSchemaService.CreateRequestSchema(schema)
+}
+
+// GetRequestSchema retrieves a request schema by ID
+func (a *AdminAPI) GetRequestSchema(id string) (*RequestSchemaConfig, error) {
+	schema, err := a.requestSchemaService.GetRequestSchemaByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return &RequestSchemaConfig{
+		ID:           schema.ID,
+		EndpointID:   schema.EndpointID,
+		FieldName:    schema.ParamName,
+		FieldType:    schema.ParamType,
+		Required:     schema.Required,
+		Location:     schema.ParamLocation,
+		DefaultValue: schema.DefaultValue,
+		Description:  schema.Description,
+	}, nil
+}
+
+// GetRequestSchemasByEndpoint retrieves all request schemas for an endpoint
+func (a *AdminAPI) GetRequestSchemasByEndpoint(endpointID string) ([]*RequestSchemaConfig, error) {
+	schemas, err := a.requestSchemaService.GetRequestSchemasByEndpointID(endpointID)
+	if err != nil {
+		return nil, err
+	}
+	
+	configs := make([]*RequestSchemaConfig, len(schemas))
+	for i, schema := range schemas {
+		configs[i] = &RequestSchemaConfig{
+			ID:           schema.ID,
+			EndpointID:   schema.EndpointID,
+			FieldName:    schema.ParamName,
+			FieldType:    schema.ParamType,
+			Required:     schema.Required,
+			Location:     schema.ParamLocation,
+			DefaultValue: schema.DefaultValue,
+			Description:  schema.Description,
+		}
+	}
+	return configs, nil
+}
+
+// UpdateRequestSchema updates an existing request schema
+func (a *AdminAPI) UpdateRequestSchema(cfg RequestSchemaConfig) error {
+	schema := &models.RequestSchema{
+		ID:            cfg.ID,
+		EndpointID:    cfg.EndpointID,
+		ParamName:     cfg.FieldName,
+		ParamLocation: cfg.Location,
+		ParamType:     cfg.FieldType,
+		Required:      cfg.Required,
+		DefaultValue:  cfg.DefaultValue,
+		Description:   cfg.Description,
+	}
+	return a.requestSchemaService.UpdateRequestSchema(schema)
+}
+
+// DeleteRequestSchema deletes a request schema by ID
+func (a *AdminAPI) DeleteRequestSchema(id string) error {
+	return a.requestSchemaService.DeleteRequestSchema(id)
+}
 
 // ===============================
 // Header Rule Configuration (Direct Repository Access)
