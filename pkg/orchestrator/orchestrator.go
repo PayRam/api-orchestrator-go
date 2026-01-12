@@ -135,7 +135,7 @@ func New(cfg Config) (*Orchestrator, error) {
 		responseMappingRepo:  responseMappingRepo,
 		credentialRepo:       credentialRepo,
 		headerBuilder:        builder.NewHeaderBuilder(credentialService, logger),
-		requestBuilder:       builder.NewRequestBuilder(),
+		requestBuilder:       builder.NewRequestBuilder(requestSchemaRepo, logger),
 		httpExecutor:         executor.NewHTTPExecutor(logger),
 		responseMapper:       response.NewResponseMapper(logger),
 		adminAPI:             adminAPI,

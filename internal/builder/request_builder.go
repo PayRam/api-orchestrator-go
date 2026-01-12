@@ -8,6 +8,8 @@ import (
 
 	"github.com/PayRam/api-orchestrator-go/internal/context"
 	"github.com/PayRam/api-orchestrator-go/internal/models"
+	"github.com/PayRam/api-orchestrator-go/internal/repositories"
+	"go.uber.org/zap"
 )
 
 // FinalRequest represents the final built HTTP request ready for execution
@@ -21,11 +23,17 @@ type FinalRequest struct {
 }
 
 // RequestBuilder is responsible for building the final HTTP request
-type RequestBuilder struct{}
+type RequestBuilder struct {
+	schemaRepo repositories.RequestSchemaRepo
+	logger     *zap.Logger
+}
 
 // NewRequestBuilder creates a new request builder
-func NewRequestBuilder() *RequestBuilder {
-	return &RequestBuilder{}
+func NewRequestBuilder(schemaRepo repositories.RequestSchemaRepo, logger *zap.Logger) *RequestBuilder {
+	return &RequestBuilder{
+		schemaRepo: schemaRepo,
+		logger:     logger,
+	}
 }
 
 // BuildRequest constructs the final request from context and metadata
@@ -36,33 +44,62 @@ func (rb *RequestBuilder) BuildRequest(
 	requestValues []*models.RequestValue,
 ) (*FinalRequest, error) {
 
-	// Build URL - use endpoint BaseURL if provided, otherwise construct from endpoint path
-	baseURL := endpoint.BaseURL
-	if baseURL == "" {
-		// If no BaseURL override in endpoint, we need to get it from context or config
-		// For now, just use the endpoint path as-is (caller should provide full URL in endpoint)
-		baseURL = ""
+	// Load request schemas for this endpoint
+	schemas, err := rb.schemaRepo.FindByEndpointID(endpoint.ID)
+	if err != nil {
+		rb.logger.Warn("Failed to load request schemas, continuing without validation",
+			zap.String("endpoint_id", endpoint.ID),
+			zap.Error(err))
+		schemas = []*models.RequestSchema{} // Continue with empty schemas
 	}
 
-	fullURL, err := rb.buildURL(baseURL, endpoint.Path, ctx)
+	rb.logger.Debug("Loaded request schemas",
+		zap.String("endpoint_id", endpoint.ID),
+		zap.Int("schema_count", len(schemas)))
+
+	// Organize parameters by location based on schemas
+	pathParams, queryParamsInterface, bodyParams, headerParams, err := rb.organizeParametersBySchema(schemas, ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to organize parameters: %w", err)
+	}
+
+	// Convert query params to string map
+	queryParams := make(map[string]string)
+	for k, v := range queryParamsInterface {
+		queryParams[k] = fmt.Sprint(v)
+	}
+
+	// Build URL - use endpoint BaseURL if provided, otherwise use provider BaseURL
+	baseURL := endpoint.BaseURL
+	if baseURL == "" {
+		baseURL = provider.BaseURL
+	}
+
+	fullURL, err := rb.buildURLWithParams(baseURL, endpoint.Path, pathParams, queryParamsInterface)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL: %w", err)
 	}
 
-	// Build query parameters
-	queryParams := rb.buildQueryParams(requestValues, ctx)
-
-	// Build body
-	body, err := rb.buildBody(requestValues, ctx)
+	// Build body from body parameters
+	body, err := rb.buildBodyFromParams(bodyParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build body: %w", err)
+	}
+
+	// Merge schema-based headers with context headers
+	finalHeaders := make(map[string]string)
+	for k, v := range ctx.Headers {
+		finalHeaders[k] = v
+	}
+	for k, v := range headerParams {
+		finalHeaders[k] = v
 	}
 
 	// Create final request
 	request := &FinalRequest{
 		Method:      endpoint.Method,
 		URL:         fullURL,
-		Headers:     ctx.Headers,
+		Headers:     finalHeaders,
 		QueryParams: queryParams,
 		Body:        body,
 	}
@@ -70,52 +107,144 @@ func (rb *RequestBuilder) BuildRequest(
 	// Generate curl command
 	request.CurlCommand = rb.generateCurlCommand(request)
 
+	rb.logger.Info("Request built with schema validation",
+		zap.String("url", fullURL),
+		zap.String("method", endpoint.Method),
+		zap.Int("path_params", len(pathParams)),
+		zap.Int("query_params", len(queryParams)),
+		zap.Int("body_params", len(bodyParams)),
+		zap.Int("header_params", len(headerParams)))
+
 	return request, nil
 }
 
-// buildURL constructs the full URL by replacing path parameters
-func (rb *RequestBuilder) buildURL(baseURL, path string, ctx *context.OrchestratorContext) (string, error) {
-	// Replace path parameters: /api/{id} => /api/123
+// organizeParametersBySchema organizes input parameters based on request schemas
+func (rb *RequestBuilder) organizeParametersBySchema(
+	schemas []*models.RequestSchema,
+	ctx *context.OrchestratorContext,
+) (pathParams, queryParams, bodyParams map[string]interface{}, headerParams map[string]string, err error) {
+
+	pathParams = make(map[string]interface{})
+	queryParams = make(map[string]interface{})
+	bodyParams = make(map[string]interface{})
+	headerParams = make(map[string]string)
+
+	// Create schema map for quick lookup
+	schemaMap := make(map[string]*models.RequestSchema)
+	for _, schema := range schemas {
+		schemaMap[schema.ParamName] = schema
+	}
+
+	// Check required parameters and apply defaults
+	for _, schema := range schemas {
+		value, hasValue := ctx.Input[schema.ParamName]
+
+		if !hasValue {
+			// Parameter not provided
+			if schema.Required {
+				if schema.DefaultValue != "" {
+					// Use default value
+					value = schema.DefaultValue
+					hasValue = true
+					rb.logger.Debug("Using default value for required parameter",
+						zap.String("param", schema.ParamName),
+						zap.String("default", schema.DefaultValue))
+				} else {
+					return nil, nil, nil, nil, fmt.Errorf("required parameter missing: %s", schema.ParamName)
+				}
+			} else if schema.DefaultValue != "" {
+				// Optional parameter with default
+				value = schema.DefaultValue
+				hasValue = true
+				rb.logger.Debug("Using default value for optional parameter",
+					zap.String("param", schema.ParamName),
+					zap.String("default", schema.DefaultValue))
+			}
+		}
+
+		if !hasValue {
+			// Optional parameter without value, skip
+			continue
+		}
+
+		// Organize by location
+		switch schema.ParamLocation {
+		case "path":
+			pathParams[schema.ParamName] = value
+		case "query":
+			queryParams[schema.ParamName] = value
+		case "body":
+			bodyParams[schema.ParamName] = value
+		case "header":
+			headerParams[schema.ParamName] = fmt.Sprintf("%v", value)
+		default:
+			rb.logger.Warn("Unknown parameter location, defaulting to body",
+				zap.String("param", schema.ParamName),
+				zap.String("location", schema.ParamLocation))
+			bodyParams[schema.ParamName] = value
+		}
+	}
+
+	// Handle parameters without schemas (backward compatibility)
+	for paramName, value := range ctx.Input {
+		if _, hasSchema := schemaMap[paramName]; !hasSchema {
+			rb.logger.Debug("Parameter has no schema, defaulting to body",
+				zap.String("param", paramName))
+			bodyParams[paramName] = value
+		}
+	}
+
+	return pathParams, queryParams, bodyParams, headerParams, nil
+}
+
+// buildURLWithParams constructs the full URL with path and query parameters
+func (rb *RequestBuilder) buildURLWithParams(
+	baseURL, path string,
+	pathParams, queryParams map[string]interface{},
+) (string, error) {
+	// Replace path parameters
 	finalPath := path
-	for key, value := range ctx.Input {
+	for key, value := range pathParams {
 		placeholder := "{" + key + "}"
 		if strings.Contains(finalPath, placeholder) {
 			finalPath = strings.ReplaceAll(finalPath, placeholder, fmt.Sprint(value))
+			rb.logger.Debug("Replaced path parameter",
+				zap.String("param", key),
+				zap.Any("value", value))
 		}
 	}
 
 	// Combine base URL and path
-	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(finalPath, "/"), nil
-}
+	fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(finalPath, "/")
 
-// buildQueryParams builds query parameters from request values
-func (rb *RequestBuilder) buildQueryParams(requestValues []*models.RequestValue, ctx *context.OrchestratorContext) map[string]string {
-	params := make(map[string]string)
-
-	for range requestValues {
-		// RequestValue has ID, SchemaID, Value, SourceType, SourceKey
-		// TODO: In full implementation, resolve SchemaID to get parameter name/location
-		// For now, skip query param building until we have proper schema resolution
+	// Add query parameters
+	if len(queryParams) > 0 {
+		queryString := url.Values{}
+		for key, value := range queryParams {
+			queryString.Add(key, fmt.Sprint(value))
+		}
+		fullURL += "?" + queryString.Encode()
 	}
 
-	return params
+	return fullURL, nil
 }
 
-// buildBody builds the request body from request values
-func (rb *RequestBuilder) buildBody(requestValues []*models.RequestValue, ctx *context.OrchestratorContext) (json.RawMessage, error) {
-	bodyMap := make(map[string]interface{})
-
-	for range requestValues {
-		// RequestValue has ID, SchemaID, Value, SourceType, SourceKey
-		// TODO: In full implementation, resolve SchemaID to get parameter name/location
-		// For now, skip body building until we have proper schema resolution
-	}
-
-	if len(bodyMap) == 0 {
+// buildBodyFromParams builds the request body from body parameters
+func (rb *RequestBuilder) buildBodyFromParams(bodyParams map[string]interface{}) (json.RawMessage, error) {
+	if len(bodyParams) == 0 {
 		return nil, nil
 	}
 
-	return json.Marshal(bodyMap)
+	bodyBytes, err := json.Marshal(bodyParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal body: %w", err)
+	}
+
+	rb.logger.Debug("Built request body",
+		zap.Int("param_count", len(bodyParams)),
+		zap.Int("body_size", len(bodyBytes)))
+
+	return bodyBytes, nil
 }
 
 // resolveValue resolves the value based on source type
