@@ -19,6 +19,7 @@ type AdminAPI struct {
 	endpointService      services.EndpointService
 	strategyService      services.StrategyService
 	requestSchemaService services.RequestSchemaService
+	requestValueService  services.RequestValueService
 	headerRuleRepo       repositories.HeaderRuleRepo
 	requestSchemaRepo    repositories.RequestSchemaRepo
 	requestValueRepo     repositories.RequestValueRepo
@@ -390,6 +391,83 @@ func (a *AdminAPI) UpdateRequestSchema(cfg RequestSchemaConfig) error {
 // DeleteRequestSchema deletes a request schema by ID
 func (a *AdminAPI) DeleteRequestSchema(id string) error {
 	return a.requestSchemaService.DeleteRequestSchema(id)
+}
+
+// ===============================
+// Request Value Configuration
+// ===============================
+
+// RequestValueConfig represents the configuration for a request value
+type RequestValueConfig struct {
+	ID         string          `json:"id"`
+	SchemaID   string          `json:"schema_id"`
+	Value      json.RawMessage `json:"value"`
+	SourceType string          `json:"source_type"` // "static", "input", "credential", "computed"
+	SourceKey  string          `json:"source_key"`
+}
+
+// CreateRequestValue creates a new request value for a schema
+func (a *AdminAPI) CreateRequestValue(cfg RequestValueConfig) error {
+	value := &models.RequestValue{
+		ID:         cfg.ID,
+		SchemaID:   cfg.SchemaID,
+		Value:      datatypes.JSON(cfg.Value),
+		SourceType: cfg.SourceType,
+		SourceKey:  cfg.SourceKey,
+	}
+	return a.requestValueService.CreateRequestValue(value)
+}
+
+// GetRequestValue retrieves a request value by ID
+func (a *AdminAPI) GetRequestValue(id string) (*RequestValueConfig, error) {
+	value, err := a.requestValueService.GetRequestValueByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return &RequestValueConfig{
+		ID:         value.ID,
+		SchemaID:   value.SchemaID,
+		Value:      json.RawMessage(value.Value),
+		SourceType: value.SourceType,
+		SourceKey:  value.SourceKey,
+	}, nil
+}
+
+// GetRequestValuesBySchema retrieves all request values for a schema
+func (a *AdminAPI) GetRequestValuesBySchema(schemaID string) ([]*RequestValueConfig, error) {
+	values, err := a.requestValueService.GetRequestValuesBySchemaID(schemaID)
+	if err != nil {
+		return nil, err
+	}
+
+	configs := make([]*RequestValueConfig, len(values))
+	for i, value := range values {
+		configs[i] = &RequestValueConfig{
+			ID:         value.ID,
+			SchemaID:   value.SchemaID,
+			Value:      json.RawMessage(value.Value),
+			SourceType: value.SourceType,
+			SourceKey:  value.SourceKey,
+		}
+	}
+	return configs, nil
+}
+
+// UpdateRequestValue updates an existing request value
+func (a *AdminAPI) UpdateRequestValue(cfg RequestValueConfig) error {
+	value := &models.RequestValue{
+		ID:         cfg.ID,
+		SchemaID:   cfg.SchemaID,
+		Value:      datatypes.JSON(cfg.Value),
+		SourceType: cfg.SourceType,
+		SourceKey:  cfg.SourceKey,
+	}
+	return a.requestValueService.UpdateRequestValue(value)
+}
+
+// DeleteRequestValue deletes a request value by ID
+func (a *AdminAPI) DeleteRequestValue(id string) error {
+	return a.requestValueService.DeleteRequestValue(id)
 }
 
 // ===============================

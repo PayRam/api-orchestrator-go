@@ -107,6 +107,7 @@ func New(cfg Config) (*Orchestrator, error) {
 	endpointService := services.NewEndpointService(endpointRepo, providerService, logger)
 	strategyService := services.NewStrategyService(strategyRepo, logger)
 	requestSchemaService := services.NewRequestSchemaService(requestSchemaRepo, endpointService, logger)
+	requestValueService := services.NewRequestValueService(requestValueRepo, requestSchemaRepo, logger)
 
 	// Initialize AdminAPI
 	adminAPI := &AdminAPI{
@@ -116,6 +117,7 @@ func New(cfg Config) (*Orchestrator, error) {
 		endpointService:      endpointService,
 		strategyService:      strategyService,
 		requestSchemaService: requestSchemaService,
+		requestValueService:  requestValueService,
 		headerRuleRepo:       headerRuleRepo,
 		requestSchemaRepo:    requestSchemaRepo,
 		requestValueRepo:     requestValueRepo,
