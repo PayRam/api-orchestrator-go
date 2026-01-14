@@ -24,15 +24,21 @@ type FinalRequest struct {
 
 // RequestBuilder is responsible for building the final HTTP request
 type RequestBuilder struct {
-	schemaRepo repositories.RequestSchemaRepo
-	logger     *zap.Logger
+	schemaRepo      repositories.RequestSchemaRepo
+	requestValueRepo repositories.RequestValueRepo
+	logger          *zap.Logger
 }
 
 // NewRequestBuilder creates a new request builder
-func NewRequestBuilder(schemaRepo repositories.RequestSchemaRepo, logger *zap.Logger) *RequestBuilder {
+func NewRequestBuilder(
+	schemaRepo repositories.RequestSchemaRepo,
+	requestValueRepo repositories.RequestValueRepo,
+	logger *zap.Logger,
+) *RequestBuilder {
 	return &RequestBuilder{
-		schemaRepo: schemaRepo,
-		logger:     logger,
+		schemaRepo:      schemaRepo,
+		requestValueRepo: requestValueRepo,
+		logger:          logger,
 	}
 }
 
@@ -57,8 +63,25 @@ func (rb *RequestBuilder) BuildRequest(
 		zap.String("endpoint_id", endpoint.ID),
 		zap.Int("schema_count", len(schemas)))
 
-	// Organize parameters by location based on schemas
-	pathParams, queryParamsInterface, bodyParams, headerParams, err := rb.organizeParametersBySchema(schemas, ctx)
+	// Load request values if not provided
+	if len(requestValues) == 0 && len(schemas) > 0 {
+		// Load request values for all schemas
+		for _, schema := range schemas {
+			values, err := rb.requestValueRepo.FindBySchemaID(schema.ID)
+			if err != nil {
+				rb.logger.Debug("No request values found for schema",
+					zap.String("schema_id", schema.ID),
+					zap.String("param_name", schema.ParamName))
+				continue
+			}
+			requestValues = append(requestValues, values...)
+		}
+		rb.logger.Debug("Loaded request values",
+			zap.Int("value_count", len(requestValues)))
+	}
+
+	// Organize parameters by location based on schemas and values
+	pathParams, queryParamsInterface, bodyParams, headerParams, err := rb.organizeParametersBySchema(schemas, requestValues, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to organize parameters: %w", err)
 	}
@@ -118,9 +141,10 @@ func (rb *RequestBuilder) BuildRequest(
 	return request, nil
 }
 
-// organizeParametersBySchema organizes input parameters based on request schemas
+// organizeParametersBySchema organizes input parameters based on request schemas and values
 func (rb *RequestBuilder) organizeParametersBySchema(
 	schemas []*models.RequestSchema,
+	requestValues []*models.RequestValue,
 	ctx *context.OrchestratorContext,
 ) (pathParams, queryParams, bodyParams map[string]interface{}, headerParams map[string]string, err error) {
 
@@ -135,10 +159,36 @@ func (rb *RequestBuilder) organizeParametersBySchema(
 		schemaMap[schema.ParamName] = schema
 	}
 
-	// Check required parameters and apply defaults
-	for _, schema := range schemas {
-		value, hasValue := ctx.Input[schema.ParamName]
+	// Create request value map: schemaID -> []RequestValue
+	valuesBySchema := make(map[string][]*models.RequestValue)
+	for _, rv := range requestValues {
+		valuesBySchema[rv.SchemaID] = append(valuesBySchema[rv.SchemaID], rv)
+	}
 
+	// Process each schema
+	for _, schema := range schemas {
+		var value interface{}
+		var hasValue bool
+
+		// Check if there are request values for this schema
+		if values, ok := valuesBySchema[schema.ID]; ok && len(values) > 0 {
+			// Use the first request value to resolve the actual value
+			rv := values[0]
+			value = rb.resolveValue(rv, ctx)
+			hasValue = (value != nil)
+
+			if hasValue {
+				rb.logger.Debug("Resolved value from RequestValue",
+					zap.String("param", schema.ParamName),
+					zap.String("source_type", rv.SourceType),
+					zap.String("source_key", rv.SourceKey))
+			}
+		} else {
+			// No request value mapping, try direct lookup using schema's param name
+			value, hasValue = ctx.Input[schema.ParamName]
+		}
+
+		// Handle missing values
 		if !hasValue {
 			// Parameter not provided
 			if schema.Required {
