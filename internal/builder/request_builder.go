@@ -330,21 +330,15 @@ func (rb *RequestBuilder) generateCurlCommand(req *FinalRequest) string {
 		parts = append(parts, fmt.Sprintf("-H '%s: %s'", key, value))
 	}
 
-	// Add body
-	if len(req.Body) > 0 {
+	// Add body only for methods that support it (not GET, HEAD, OPTIONS)
+	method := strings.ToUpper(req.Method)
+	if len(req.Body) > 0 && method != "GET" && method != "HEAD" && method != "OPTIONS" {
 		parts = append(parts, fmt.Sprintf("-d '%s'", string(req.Body)))
 	}
 
-	// Add URL with query params
-	finalURL := req.URL
-	if len(req.QueryParams) > 0 {
-		queryString := url.Values{}
-		for key, value := range req.QueryParams {
-			queryString.Add(key, value)
-		}
-		finalURL += "?" + queryString.Encode()
-	}
-	parts = append(parts, fmt.Sprintf("'%s'", finalURL))
+	// Use the URL as-is (query params are already included in req.URL from buildURLWithParams)
+	// Don't append query params again to avoid duplication
+	parts = append(parts, fmt.Sprintf("'%s'", req.URL))
 
 	return strings.Join(parts, " ")
 }
