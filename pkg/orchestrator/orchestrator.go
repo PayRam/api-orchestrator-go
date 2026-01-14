@@ -246,6 +246,176 @@ func (o *Orchestrator) Call(provider string, action string, params map[string]in
 	return unifiedResponse, nil
 }
 
+// CurlDetails represents detailed information about a curl command including
+// all components that make up the request.
+type CurlDetails struct {
+	CurlCommand string            `json:"curl_command"` // Complete curl command
+	Method      string            `json:"method"`       // HTTP method
+	URL         string            `json:"url"`          // Complete URL with query params
+	Headers     map[string]string `json:"headers"`      // All headers
+	QueryParams map[string]string `json:"query_params"` // Query parameters
+	Body        string            `json:"body"`         // Request body
+	Provider    string            `json:"provider"`     // Provider name
+	Action      string            `json:"action"`       // Action name
+}
+
+// BuildCurl builds a curl command for the given provider, action, and params
+// without executing the request. This is useful for debugging and testing.
+//
+// Parameters:
+//   - provider: The name of the provider (e.g., "banxa", "transak")
+//   - action: The action/endpoint to call (e.g., "create_widget_url")
+//   - params: A map of input parameters for the request
+//
+// Returns:
+//   - string: The curl command as a string
+//   - error: Any error that occurred during the build process
+func (o *Orchestrator) BuildCurl(provider string, action string, params map[string]interface{}) (string, error) {
+	o.logger.Info("Building curl command",
+		zap.String("provider", provider),
+		zap.String("action", action))
+
+	// Step 1: Get provider
+	providerModel, err := o.providerService.GetProviderByName(provider)
+	if err != nil {
+		return "", fmt.Errorf("provider not found: %w", err)
+	}
+
+	// Create orchestration context with the loaded provider
+	ctx := context.NewContext(models.Provider{
+		ID:           providerModel.ID,
+		Name:         providerModel.Name,
+		DisplayName:  providerModel.DisplayName,
+		PipelineType: providerModel.PipelineType,
+		IsActive:     providerModel.IsActive,
+	}, action, params)
+
+	// Step 2: Get endpoint
+	endpoint, err := o.endpointService.GetEndpointByProviderAndName(provider, action)
+	if err != nil {
+		return "", fmt.Errorf("endpoint not found: %w", err)
+	}
+
+	// Step 3: Load credentials
+	credentials, err := o.credentialService.GetCredentialsByProviderID(providerModel.ID)
+	if err != nil {
+		o.logger.Warn("Failed to load credentials", zap.Error(err))
+	} else {
+		for _, cred := range credentials {
+			ctx.SetCredential(cred.Key, cred.Value)
+		}
+	}
+
+	// Step 4: Build headers
+	headerRules, err := o.headerRuleRepo.FindByProviderID(providerModel.ID)
+	if err != nil {
+		o.logger.Warn("Failed to load header rules", zap.Error(err))
+	} else {
+		err = o.headerBuilder.BuildHeaders(ctx, headerRules, providerModel.ID)
+		if err != nil {
+			return "", fmt.Errorf("failed to build headers: %w", err)
+		}
+	}
+
+	// Step 5: Build request
+	requestValues := []*models.RequestValue{}
+	finalRequest, err := o.requestBuilder.BuildRequest(ctx, providerModel, endpoint, requestValues)
+	if err != nil {
+		return "", fmt.Errorf("failed to build request: %w", err)
+	}
+
+	o.logger.Info("Curl command built successfully",
+		zap.String("method", finalRequest.Method),
+		zap.String("url", finalRequest.URL))
+
+	return finalRequest.CurlCommand, nil
+}
+
+// BuildCurlWithDetails builds a curl command with detailed information about
+// all the components that make up the request. This is useful for debugging
+// and for frontend applications that need to display request details.
+//
+// Parameters:
+//   - provider: The name of the provider (e.g., "banxa", "transak")
+//   - action: The action/endpoint to call (e.g., "create_widget_url")
+//   - params: A map of input parameters for the request
+//
+// Returns:
+//   - *CurlDetails: Detailed information about the curl command
+//   - error: Any error that occurred during the build process
+func (o *Orchestrator) BuildCurlWithDetails(provider string, action string, params map[string]interface{}) (*CurlDetails, error) {
+	o.logger.Info("Building curl command with details",
+		zap.String("provider", provider),
+		zap.String("action", action))
+
+	// Step 1: Get provider
+	providerModel, err := o.providerService.GetProviderByName(provider)
+	if err != nil {
+		return nil, fmt.Errorf("provider not found: %w", err)
+	}
+
+	// Create orchestration context with the loaded provider
+	ctx := context.NewContext(models.Provider{
+		ID:           providerModel.ID,
+		Name:         providerModel.Name,
+		DisplayName:  providerModel.DisplayName,
+		PipelineType: providerModel.PipelineType,
+		IsActive:     providerModel.IsActive,
+	}, action, params)
+
+	// Step 2: Get endpoint
+	endpoint, err := o.endpointService.GetEndpointByProviderAndName(provider, action)
+	if err != nil {
+		return nil, fmt.Errorf("endpoint not found: %w", err)
+	}
+
+	// Step 3: Load credentials
+	credentials, err := o.credentialService.GetCredentialsByProviderID(providerModel.ID)
+	if err != nil {
+		o.logger.Warn("Failed to load credentials", zap.Error(err))
+	} else {
+		for _, cred := range credentials {
+			ctx.SetCredential(cred.Key, cred.Value)
+		}
+	}
+
+	// Step 4: Build headers
+	headerRules, err := o.headerRuleRepo.FindByProviderID(providerModel.ID)
+	if err != nil {
+		o.logger.Warn("Failed to load header rules", zap.Error(err))
+	} else {
+		err = o.headerBuilder.BuildHeaders(ctx, headerRules, providerModel.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build headers: %w", err)
+		}
+	}
+
+	// Step 5: Build request
+	requestValues := []*models.RequestValue{}
+	finalRequest, err := o.requestBuilder.BuildRequest(ctx, providerModel, endpoint, requestValues)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+
+	o.logger.Info("Curl command with details built successfully",
+		zap.String("method", finalRequest.Method),
+		zap.String("url", finalRequest.URL))
+
+	// Build the detailed response
+	details := &CurlDetails{
+		CurlCommand: finalRequest.CurlCommand,
+		Method:      finalRequest.Method,
+		URL:         finalRequest.URL,
+		Headers:     finalRequest.Headers,
+		QueryParams: finalRequest.QueryParams,
+		Body:        string(finalRequest.Body),
+		Provider:    provider,
+		Action:      action,
+	}
+
+	return details, nil
+}
+
 // Admin returns the AdminAPI for managing providers, credentials, endpoints, and configurations.
 // This provides a clean interface for external Go projects to configure the orchestrator.
 func (o *Orchestrator) Admin() *AdminAPI {

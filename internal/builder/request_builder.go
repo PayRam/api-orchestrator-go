@@ -24,9 +24,9 @@ type FinalRequest struct {
 
 // RequestBuilder is responsible for building the final HTTP request
 type RequestBuilder struct {
-	schemaRepo      repositories.RequestSchemaRepo
+	schemaRepo       repositories.RequestSchemaRepo
 	requestValueRepo repositories.RequestValueRepo
-	logger          *zap.Logger
+	logger           *zap.Logger
 }
 
 // NewRequestBuilder creates a new request builder
@@ -36,9 +36,9 @@ func NewRequestBuilder(
 	logger *zap.Logger,
 ) *RequestBuilder {
 	return &RequestBuilder{
-		schemaRepo:      schemaRepo,
+		schemaRepo:       schemaRepo,
 		requestValueRepo: requestValueRepo,
-		logger:          logger,
+		logger:           logger,
 	}
 }
 
